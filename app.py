@@ -7,7 +7,7 @@ st.set_page_config(page_title="Guru Bahasa AI", page_icon="🎓")
 # --- AMBIL API KEY DARI SECRETS ---
 # Streamlit otomatis membaca dari .streamlit/secrets.toml
 try:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    genai.configure(api_key=st.secrets["AIzaSyBbueIhOhFNZDNSVYiXk0C6MJGhrKzA15w"])
 except KeyError:
     st.error("API Key tidak ditemukan! Pastikan sudah ada di .streamlit/secrets.toml")
     st.stop()
