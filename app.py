@@ -2,87 +2,75 @@ import streamlit as st
 import google.generativeai as genai
 
 # --- KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="Guru Bahasa AI", page_icon="🎓")
+st.set_page_config(page_title="Guru Bahasa AI", page_icon="🎓", layout="wide")
 
-# --- KONFIGURASI API (Membaca dari Secrets) ---
+# --- KONFIGURASI API ---
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 except:
-    st.error("API Key tidak ditemukan di .streamlit/secrets.toml!")
+    st.error("API Key tidak ditemukan di Secrets!")
     st.stop()
 
-# --- SETUP MODEL ---
-instruction = (
-    "Kamu adalah 'Guru Bahasa AI' yang ahli dalam Bahasa Indonesia, Inggris, dan Korea. "
-    "Tugasmu membantu terjemahan kompleks dan menjelaskan grammar. "
-    "Bersikaplah ramah dan edukatif."
-)
-model = genai.GenerativeModel(
-    model_name="gemini-2.5-flash",
-    system_instruction=instruction
-)
+model = genai.GenerativeModel("gemini-2.5-flash")
 
-# --- INISIALISASI RIWAYAT PESAN ---
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# --- SISTEM PENYIMPANAN RIWAYAT ---
+# Struktur: { "id_chat_1": [pesan1, pesan2], "id_chat_2": [pesan1] }
+if "all_chats" not in st.session_state:
+    st.session_state.all_chats = {"Chat Utama": []}
 
-# --- SIDEBAR (Untuk Fitur Simpan & Hapus) ---
+if "current_chat" not in st.session_state:
+    st.session_state.current_chat = "Chat Utama"
+
+# --- SIDEBAR: DAFTAR RIWAYAT ---
 with st.sidebar:
-    st.header("Menu Riwayat")
+    st.title("📚 Riwayat Guru")
     
-    # Fitur Mengunduh Riwayat Chat
-    if st.session_state.messages:
-        # Menggabungkan semua chat menjadi satu teks panjang
-        chat_text = ""
-        for msg in st.session_state.messages:
-            role = "Siswa" if msg["role"] == "user" else "Guru AI"
-            chat_text += f"{role}: {msg['content']}\n\n"
-        
-        st.download_button(
-            label="💾 Download Riwayat Chat (.txt)",
-            data=chat_text,
-            file_name="riwayat_belajar_bahasa.txt",
-            mime="text/plain"
-        )
-    
-    # Tombol Hapus Semua Chat
-    if st.button("🗑️ Hapus Semua Percakapan"):
-        st.session_state.messages = []
+    # Tombol Chat Baru
+    if st.button("+ Buat Percakapan Baru"):
+        new_id = f"Chat {len(st.session_state.all_chats) + 1}"
+        st.session_state.all_chats[new_id] = []
+        st.session_state.current_chat = new_id
         st.rerun()
 
-# --- TAMPILAN UTAMA ---
-st.title("🎓 Guru Bahasa AI")
-st.write("Riwayat pertanyaanmu akan tersimpan di bawah ini selama aplikasi berjalan.")
+    st.write("---")
+    st.write("Pilih Percakapan:")
+    
+    # Daftar Judul Chat yang pernah dibuat
+    for chat_id in st.session_state.all_chats.keys():
+        if st.button(chat_id, key=chat_id):
+            st.session_state.current_chat = chat_id
+            st.rerun()
 
-# Menampilkan riwayat chat dari session_state
-for message in st.session_state.messages:
+# --- TAMPILAN UTAMA ---
+st.title(f"🎓 {st.session_state.current_chat}")
+st.info("Guru AI siap membantumu belajar Indo-Eng-Kor!")
+
+# Ambil pesan dari chat yang sedang aktif dipilih
+messages = st.session_state.all_chats[st.session_state.current_chat]
+
+# Tampilkan pesan-pesan lama di chat yang dipilih
+for message in messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# --- PROSES INPUT USER ---
-if prompt := st.chat_input("Tanyakan sesuatu pada Guru..."):
-    # 1. Tampilkan dan simpan pesan user ke riwayat
-    st.session_state.messages.append({"role": "user", "content": prompt})
+# --- PROSES INPUT ---
+if prompt := st.chat_input("Tanya guru..."):
+    # Simpan ke riwayat chat aktif
+    st.session_state.all_chats[st.session_state.current_chat].append({"role": "user", "content": prompt})
+    
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # 2. Ambil respon dari AI
     with st.chat_message("assistant"):
         with st.spinner("Guru sedang berpikir..."):
             try:
-                # Mengirim pesan dengan menyertakan konteks sebelumnya
-                chat = model.start_chat(history=[
-                    {"role": "user", "parts": [m["content"]]} if m["role"] == "user" 
-                    else {"role": "model", "parts": [m["content"]]}
-                    for m in st.session_state.messages[:-1]
-                ])
+                # Berikan instruksi agar AI menjadi guru
+                full_prompt = f"Sebagai Guru Bahasa, jawablah ini: {prompt}"
+                response = model.generate_content(full_prompt)
+                answer = response.text
                 
-                response = chat.send_message(prompt)
-                full_response = response.text
-                
-                st.markdown(full_response)
-                
-                # 3. Simpan respon guru ke riwayat
-                st.session_state.messages.append({"role": "assistant", "content": full_response})
+                st.markdown(answer)
+                # Simpan jawaban ke riwayat chat aktif
+                st.session_state.all_chats[st.session_state.current_chat].append({"role": "assistant", "content": answer})
             except Exception as e:
-                st.error(f"Terjadi kesalahan: {e}")
+                st.error(f"Error: {e}")
