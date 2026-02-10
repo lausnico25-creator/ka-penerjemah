@@ -8,69 +8,89 @@ st.set_page_config(page_title="Guru Bahasa AI", page_icon="🎓", layout="wide")
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 except:
-    st.error("API Key tidak ditemukan di Secrets!")
+    st.error("API Key belum disetting di Secrets!")
     st.stop()
 
 model = genai.GenerativeModel("gemini-2.5-flash")
 
-# --- SISTEM PENYIMPANAN RIWAYAT ---
-# Struktur: { "id_chat_1": [pesan1, pesan2], "id_chat_2": [pesan1] }
+# --- SISTEM PENYIMPANAN ---
 if "all_chats" not in st.session_state:
-    st.session_state.all_chats = {"Chat Utama": []}
+    st.session_state.all_chats = {} # Format: { "Judul Chat": [pesan] }
 
-if "current_chat" not in st.session_state:
-    st.session_state.current_chat = "Chat Utama"
+if "current_chat_id" not in st.session_state:
+    st.session_state.current_chat_id = None
 
-# --- SIDEBAR: DAFTAR RIWAYAT ---
+# --- FUNGSI BUAT JUDUL OTOMATIS ---
+def generate_chat_title(user_input):
+    prompt_judul = f"Buat satu judul sangat singkat (maksimal 3 kata) untuk topik ini: {user_input}"
+    response = model.generate_content(prompt_judul)
+    return response.text.strip()
+
+# --- SIDEBAR ---
 with st.sidebar:
     st.title("📚 Riwayat Guru")
     
-    # Tombol Chat Baru
-    if st.button("+ Buat Percakapan Baru"):
-        new_id = f"Chat {len(st.session_state.all_chats) + 1}"
-        st.session_state.all_chats[new_id] = []
-        st.session_state.current_chat = new_id
+    if st.button("+ Chat Baru"):
+        st.session_state.current_chat_id = None
         st.rerun()
 
     st.write("---")
-    st.write("Pilih Percakapan:")
-    
-    # Daftar Judul Chat yang pernah dibuat
+    # Menampilkan daftar chat yang sudah ada
     for chat_id in st.session_state.all_chats.keys():
-        if st.button(chat_id, key=chat_id):
-            st.session_state.current_chat = chat_id
+        if st.button(f"💬 {chat_id}", key=chat_id, use_container_width=True):
+            st.session_state.current_chat_id = chat_id
             st.rerun()
 
 # --- TAMPILAN UTAMA ---
-st.title(f"🎓 {st.session_state.current_chat}")
-st.info("Guru AI siap membantumu belajar Indo-Eng-Kor!")
+st.title("🎓 Guru Bahasa AI")
 
-# Ambil pesan dari chat yang sedang aktif dipilih
-messages = st.session_state.all_chats[st.session_state.current_chat]
+# Tampilkan chat yang sedang aktif
+if st.session_state.current_chat_id:
+    messages = st.session_state.all_chats[st.session_state.current_chat_id]
+    for message in messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+else:
+    st.info("Mulai ketik sesuatu untuk memulai percakapan baru!")
 
-# Tampilkan pesan-pesan lama di chat yang dipilih
-for message in messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# --- PROSES INPUT ---
+# --- INPUT USER ---
 if prompt := st.chat_input("Tanya guru..."):
-    # Simpan ke riwayat chat aktif
-    st.session_state.all_chats[st.session_state.current_chat].append({"role": "user", "content": prompt})
     
+    # Jika ini chat baru (belum ada judul)
+    if st.session_state.current_chat_id is None:
+        with st.spinner("Menyiapkan percakapan..."):
+            new_title = generate_chat_title(prompt)
+            # Pastikan judul unik
+            if new_title in st.session_state.all_chats:
+                new_title = f"{new_title} ({len(st.session_state.all_chats)})"
+            
+            st.session_state.all_chats[new_title] = []
+            st.session_state.current_chat_id = new_title
+
+    # Simpan dan tampilkan pesan user
+    st.session_state.all_chats[st.session_state.current_chat_id].append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    # Respon AI
     with st.chat_message("assistant"):
-        with st.spinner("Guru sedang berpikir..."):
+        with st.spinner("Guru sedang mengetik..."):
             try:
-                # Berikan instruksi agar AI menjadi guru
-                full_prompt = f"Sebagai Guru Bahasa, jawablah ini: {prompt}"
-                response = model.generate_content(full_prompt)
+                # Instruksi sistem
+                instruction = (
+                    "Kamu adalah Guru Bahasa ahli Indo, Inggris, Korea. "
+                    "Jelaskan terjemahan secara kompleks dan edukatif."
+                )
+                
+                # Mengambil history untuk konteks
+                history_context = st.session_state.all_chats[st.session_state.current_chat_id]
+                
+                response = model.generate_content(f"{instruction}\n\nChat: {history_context}")
                 answer = response.text
                 
                 st.markdown(answer)
-                # Simpan jawaban ke riwayat chat aktif
-                st.session_state.all_chats[st.session_state.current_chat].append({"role": "assistant", "content": answer})
+                st.session_state.all_chats[st.session_state.current_chat_id].append({"role": "assistant", "content": answer})
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Terjadi kesalahan: {e}")
+    
+    st.rerun() # Refresh agar judul di sidebar langsung muncul
