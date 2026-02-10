@@ -51,7 +51,7 @@ if st.session_state.current_chat_id:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 else:
-    st.info("Mulai ketik sesuatu untuk memulai percakapan baru!")
+    st.info("Apa yang bisa saya bantu?🧑‍🏫")
 
 # --- INPUT USER ---
 if prompt := st.chat_input("Tanya guru..."):
