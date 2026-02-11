@@ -1,96 +1,72 @@
 import streamlit as st
-import google.generativeai as genai
 
-# --- KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="Guru Bahasa AI", page_icon="🎓", layout="wide")
+# Mengatur judul halaman dan ikon
+st.set_page_config(page_title="Valentine's Day", page_icon="❤️")
 
-# --- KONFIGURASI API ---
-try:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-except:
-    st.error("API Key belum disetting di Secrets!")
-    st.stop()
+# Inisialisasi 'session state' agar data tidak hilang saat halaman refresh
+if 'no_count' not in st.session_state:
+    st.session_state.no_count = 0
+if 'say_yes' not in st.session_state:
+    st.session_state.say_yes = False
 
-model = genai.GenerativeModel("gemini-2.5-flash")
+# Daftar pesan yang muncul saat tombol "No" ditekan
+no_messages = [
+    "No",
+    "Are you sure?",
+    "Really sure??",
+    "Are you positive?",
+    "Pookie please...",
+    "Just think about it!",
+    "If you say no, I will be really sad...",
+    "I will be very sad...",
+    "I will be very very very sad..."
+]
 
-# --- SISTEM PENYIMPANAN ---
-if "all_chats" not in st.session_state:
-    st.session_state.all_chats = {} # Format: { "Judul Chat": [pesan] }
+# Fungsi jika tombol "No" diklik
+def press_no():
+    st.session_state.no_count += 1
 
-if "current_chat_id" not in st.session_state:
-    st.session_state.current_chat_id = None
+# Fungsi jika tombol "Yes" diklik
+def press_yes():
+    st.session_state.say_yes = True
 
-# --- FUNGSI BUAT JUDUL OTOMATIS ---
-def generate_chat_title(user_input):
-    prompt_judul = f"Buat satu judul sangat singkat (maksimal 3 kata) untuk topik ini: {user_input}"
-    response = model.generate_content(prompt_judul)
-    return response.text.strip()
+# --- TAMPILAN ---
 
-# --- SIDEBAR ---
-with st.sidebar:
-    st.title("📚 Riwayat Guru")
+if not st.session_state.say_yes:
+    st.title("Will you be my Valentine? ❤️")
     
-    if st.button("+ Chat Baru"):
-        st.session_state.current_chat_id = None
-        st.rerun()
+    # Gambar GIF (Gunakan URL gambar kucing yang lucu)
+    st.image("https://media.tenor.com/jck_6VvjY_0AAAAi/capoo-blue-cat.gif", width=200)
 
-    st.write("---")
-    # Menampilkan daftar chat yang sudah ada
-    for chat_id in st.session_state.all_chats.keys():
-        if st.button(f"💬 {chat_id}", key=chat_id, use_container_width=True):
-            st.session_state.current_chat_id = chat_id
-            st.rerun()
+    # Hitung ukuran font tombol "Yes" (semakin sering klik No, semakin besar)
+    yes_font_size = 16 + (st.session_state.no_count * 10)
+    
+    # Membuat kolom untuk tombol
+    col1, col2 = st.columns([1, 1])
 
-# --- TAMPILAN UTAMA ---
-st.title("🎓 Guru Bahasa AI")
+    with col1:
+        # Tombol YES dengan ukuran dinamis menggunakan HTML
+        if st.button("Yes", key="yes_btn", on_click=press_yes):
+            pass
+        # CSS sedikit untuk memperbesar tombol Yes secara visual
+        st.markdown(f"""
+            <style>
+            div.stButton > button#yes_btn {{
+                font-size: {yes_font_size}px !important;
+                padding: {10 + st.session_state.no_count}px !important;
+                background-color: #28a745;
+                color: white;
+            }}
+            </style>
+        """, unsafe_content_allowed=True)
 
-# Tampilkan chat yang sedang aktif
-if st.session_state.current_chat_id:
-    messages = st.session_state.all_chats[st.session_state.current_chat_id]
-    for message in messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    with col2:
+        # Tombol NO yang teksnya berubah-ubah
+        msg_index = min(st.session_state.no_count, len(no_messages) - 1)
+        st.button(no_messages[msg_index], on_click=press_no)
+
 else:
-    st.info("Apa yang bisa saya bantu?🧑‍🏫")
-
-# --- INPUT USER ---
-if prompt := st.chat_input("Tanya guru..."):
-    
-    # Jika ini chat baru (belum ada judul)
-    if st.session_state.current_chat_id is None:
-        with st.spinner("Menyiapkan percakapan..."):
-            new_title = generate_chat_title(prompt)
-            # Pastikan judul unik
-            if new_title in st.session_state.all_chats:
-                new_title = f"{new_title} ({len(st.session_state.all_chats)})"
-            
-            st.session_state.all_chats[new_title] = []
-            st.session_state.current_chat_id = new_title
-
-    # Simpan dan tampilkan pesan user
-    st.session_state.all_chats[st.session_state.current_chat_id].append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    # Respon AI
-    with st.chat_message("assistant"):
-        with st.spinner("Guru sedang mengetik..."):
-            try:
-                # Instruksi sistem
-                instruction = (
-                    "Kamu adalah Guru Bahasa ahli Indo, Inggris, Korea. "
-                    "Jelaskan terjemahan secara kompleks dan edukatif."
-                )
-                
-                # Mengambil history untuk konteks
-                history_context = st.session_state.all_chats[st.session_state.current_chat_id]
-                
-                response = model.generate_content(f"{instruction}\n\nChat: {history_context}")
-                answer = response.text
-                
-                st.markdown(answer)
-                st.session_state.all_chats[st.session_state.current_chat_id].append({"role": "assistant", "content": answer})
-            except Exception as e:
-                st.error(f"Terjadi kesalahan: {e}")
-    
-    st.rerun() # Refresh agar judul di sidebar langsung muncul
+    # Tampilan jika sudah klik "YES"
+    st.title("Knew you would say yes! ❤️")
+    st.image("https://media.tenor.com/gU_i95S8L7IAAAAi/bear-kiss-bear-cute.gif", width=300)
+    st.balloons() # Efek balon perayaan!
