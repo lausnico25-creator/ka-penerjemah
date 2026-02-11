@@ -1,72 +1,70 @@
 import streamlit as st
 
-# Mengatur judul halaman dan ikon
+# 1. Konfigurasi Halaman
 st.set_page_config(page_title="Valentine's Day", page_icon="❤️")
 
-# Inisialisasi 'session state' agar data tidak hilang saat halaman refresh
+# 2. Inisialisasi Database Sementara (Session State)
 if 'no_count' not in st.session_state:
     st.session_state.no_count = 0
 if 'say_yes' not in st.session_state:
     st.session_state.say_yes = False
 
-# Daftar pesan yang muncul saat tombol "No" ditekan
+# 3. Daftar Pesan Tombol No
 no_messages = [
-    "No",
-    "Are you sure?",
-    "Really sure??",
-    "Are you positive?",
-    "Pookie please...",
-    "Just think about it!",
-    "If you say no, I will be really sad...",
-    "I will be very sad...",
+    "No", "Are you sure?", "Really sure??", "Are you positive?", 
+    "Pookie please...", "Just think about it!", 
+    "If you say no, I will be really sad...", "I will be very sad...", 
     "I will be very very very sad..."
 ]
 
-# Fungsi jika tombol "No" diklik
-def press_no():
-    st.session_state.no_count += 1
-
-# Fungsi jika tombol "Yes" diklik
-def press_yes():
-    st.session_state.say_yes = True
-
-# --- TAMPILAN ---
+# --- TAMPILAN UTAMA ---
 
 if not st.session_state.say_yes:
     st.title("Will you be my Valentine? ❤️")
     
-    # Gambar GIF (Gunakan URL gambar kucing yang lucu)
-    st.image("https://media.tenor.com/jck_6VvjY_0AAAAi/capoo-blue-cat.gif", width=200)
+    # Gambar Kucing (Bisa diganti URL-nya jika punya sendiri)
+    st.image("https://media.tenor.com/jck_6VvjY_0AAAAi/capoo-blue-cat.gif", width=250)
 
-    # Hitung ukuran font tombol "Yes" (semakin sering klik No, semakin besar)
-    yes_font_size = 16 + (st.session_state.no_count * 10)
-    
-    # Membuat kolom untuk tombol
+    # Logika ukuran tombol Yes (Makin banyak klik No, makin raksasa!)
+    # Kita gunakan padding dan font-size untuk membesarkannya
+    yes_size = 15 + (st.session_state.no_count * 15) 
+    padding = 10 + (st.session_state.no_count * 5)
+
+    # CSS Custom untuk tombol
+    st.markdown(f"""
+        <style>
+        .stButton > button:first-child {{
+            background-color: #28a745 !important;
+            color: white !important;
+            font-size: {yes_size}px !important;
+            padding: {padding}px {padding*2}px !important;
+            transition: 0.3s;
+        }}
+        div[data-testid="column"]:nth-child(2) button {{
+            background-color: #dc3545 !important;
+            color: white !important;
+            font-size: 16px !important;
+        }}
+        </style>
+    """, unsafe_content_allowed=True)
+
+    # Membuat layout kolom
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        # Tombol YES dengan ukuran dinamis menggunakan HTML
-        if st.button("Yes", key="yes_btn", on_click=press_yes):
-            pass
-        # CSS sedikit untuk memperbesar tombol Yes secara visual
-        st.markdown(f"""
-            <style>
-            div.stButton > button#yes_btn {{
-                font-size: {yes_font_size}px !important;
-                padding: {10 + st.session_state.no_count}px !important;
-                background-color: #28a745;
-                color: white;
-            }}
-            </style>
-        """, unsafe_content_allowed=True)
+        if st.button("Yes", key="yes_btn"):
+            st.session_state.say_yes = True
+            st.rerun() # Refresh halaman untuk pindah tampilan
 
     with col2:
-        # Tombol NO yang teksnya berubah-ubah
+        # Teks tombol No berubah sesuai hitungan
         msg_index = min(st.session_state.no_count, len(no_messages) - 1)
-        st.button(no_messages[msg_index], on_click=press_no)
+        if st.button(no_messages[msg_index], key="no_btn"):
+            st.session_state.no_count += 1
+            st.rerun() # Refresh untuk memperbesar tombol Yes
 
 else:
-    # Tampilan jika sudah klik "YES"
+    # --- TAMPILAN SETELAH KLIK YES ---
     st.title("Knew you would say yes! ❤️")
-    st.image("https://media.tenor.com/gU_i95S8L7IAAAAi/bear-kiss-bear-cute.gif", width=300)
-    st.balloons() # Efek balon perayaan!
+    st.image("https://media.tenor.com/gU_i95S8L7IAAAAi/bear-kiss-bear-cute.gif", width=350)
+    st.balloons()
